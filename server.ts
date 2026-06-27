@@ -165,6 +165,184 @@ app.get("/api/github/files", async (req, res) => {
   }
 });
 
+// --- OFFLINE COMPILATION ENGINES IN TYPESCRIPT ---
+function offlineSemanticCheckerTS(title: string, text: string, files: string[]) {
+  const fileKeywords: Record<string, string[]> = {
+    "it-sicherheit": ["sicherheit", "cyber", "phishing", "angriff", "schadsoftware", "schwachstelle", "firewall", "passwort", "schlüssel", "smc-b", "ehba", "signatur", "virus", "viren", "malware", "ransomware", "trojaner"],
+    "kimdienst": ["kim", "telematik", "nachricht", "verschlüsselung", "e-mail", "ti-dienst", "komunikation"],
+    "dermatologie": ["dermatologie", "haut", "melanom", "muttermal", "scan", "auflicht", "arzt", "hautkrebs", "flecken"],
+    "diabetologie": ["diabetes", "diabetologie", "insulin", "blutzucker", "glukose", "sensor"],
+    "geriatrie": ["geriatrie", "altenmedizin", "senioren", "alter", "multimorbidität", "pflege", "angehörige"],
+    "allgemeinmedizin": ["allgemeinmedizin", "hausarzt", "praxis", "patienten", "versorgung", "ebm", "arztpraxis"],
+    "datenschutz": ["datenschutz", "dsgvo", "daten", "privatsphäre", "schweigepflicht", "patientendaten", "gespeichert"],
+    "agentische-ki": ["agent", "coprocessor", "workflow", "automatisierung", "mcp", "agenten", "entscheidung"],
+    "grosse-sprachmodelle": ["llm", "sprachmodell", "gpt", "llama", "qwen", "gemini", "prompts", "generative"],
+    "kuenstliche-intelligenz": ["ki", "künstliche", "intelligenz", "deep learning", "maschinelles", "lernen", "neuronalen"],
+    "telemedizin": ["telemedizin", "video", "videosprechstunde", "monitoring", "online", "fernbehandlung", "sprechstunde"],
+    "anamneseerhebung": ["anamnese", "befragung", "erhebung", "fragebogen", "aufnahme"],
+    "ambulantes-operieren": ["operieren", "ambulant", "chirurgie", "op", "eingriff", "chirurgisch"],
+    "apotheken": ["apotheke", "rezept", "e-rezept", "medikation", "arzneimittel", "rezeptfrei"],
+    "arbeitsmedizin": ["arbeit", "arbeitsmedizin", "berufsgenossenschaft", "betriebsmedizin", "arbeitsplatz"],
+    "augenheilkunde": ["auge", "augen", "ophtha", "sehtest", "glaukom", "visus"],
+    "ausbildung": ["ausbildung", "mfa", "studium", "weiterbildung", "lehre", "azubi"],
+    "buchhaltung": ["buchhaltung", "rechnung", "finanzen", "steuer", "ebm", "abrechnung", "honorar"],
+    "chatbot": ["chatbot", "chat", "bot", "assistent", "interaktiv", "dialog"],
+  };
+
+  const combined = ((title || "") + " " + text).toLowerCase();
+  let bestFile = "allgemeinmedizin.qmd";
+  let bestScore = 0;
+
+  for (const f of files) {
+    const fName = f.replace(".qmd", "");
+    let score = 0;
+    if (combined.includes(fName)) {
+      score += 25;
+    }
+
+    const keywords = fileKeywords[fName] || [];
+    for (const kw of keywords) {
+      if (combined.includes(kw)) {
+        const count = combined.split(kw).length - 1;
+        score += count * 4;
+      }
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestFile = f;
+    }
+  }
+
+  let isPresent = false;
+  let matchingFilename: string | null = null;
+  const titleClean = (title || "").toLowerCase().replace(/[^a-z0-9\s]/g, "");
+
+  if (titleClean) {
+    for (const f of files) {
+      const fClean = f.replace(".qmd", "").replace(/-/g, " ");
+      if (fClean.includes(titleClean) || titleClean.includes(fClean)) {
+        isPresent = true;
+        matchingFilename = f;
+        break;
+      }
+    }
+  }
+
+  let reasoning = "";
+  if (isPresent) {
+    reasoning = `Die Offline-Linguistik-Engine identifizierte eine genaue thematische Übereinstimmung des Artikeltitels mit der bestehenden Datei '${matchingFilename}'.`;
+  } else {
+    reasoning = `Die Offline-Linguistik-Engine hat den Artikel analysiert und mit einer Konfidenz von ${bestScore} Punkten der am besten passenden Kategorie '${bestFile}' zugeordnet.`;
+  }
+
+  return { isPresent, matchingFilename, bestFitFilename: bestFile, reasoning };
+}
+
+function generateOfflineSummaryTS(title: string, text: string, targetFile: string) {
+  const paragraphs = text.split("\n").map(p => p.trim()).filter(p => p.length > 30);
+  const sentences: string[] = [];
+  for (const p of paragraphs) {
+    const sents = p.split(/(?<=[.!?])\s+/);
+    for (const s of sents) {
+      const st = s.trim();
+      if (st.length > 15) {
+        sentences.push(st);
+      }
+    }
+  }
+
+  const keywords = ["ki", "künstliche intelligenz", "sicherheit", "kim", "praxis", "arzt", "digital", "pvs", "telemedizin", "integration", "risiko", "patienten", "datenschutz"];
+  const highlightCandidates: { score: number; sentence: string }[] = [];
+
+  for (const s of sentences) {
+    const sLower = s.toLowerCase();
+    let score = 0;
+    for (const kw of keywords) {
+      if (sLower.includes(kw)) score += 3;
+    }
+    if (s.length > 40 && s.length < 220) {
+      highlightCandidates.push({ score, sentence: s });
+    }
+  }
+
+  highlightCandidates.sort((a, b) => b.score - a.score);
+  let bullets = highlightCandidates.slice(0, 4).map(c => c.sentence);
+
+  if (bullets.length < 3) {
+    bullets = sentences.slice(0, 3);
+  }
+
+  bullets = bullets.map(b => b.replace(/[.]+$/, "") + ".");
+
+  const textLower = text.toLowerCase();
+  let actionItems: string[] = [];
+
+  if (textLower.includes("sicherheit") || textLower.includes("kim") || textLower.includes("risiko") || textLower.includes("schwachstelle")) {
+    actionItems = [
+      "Überprüfung der Verschlüsselungsprotokolle und privaten Schlüssel (eHBA/SMC-B) im Praxisnetzwerk.",
+      "Einrichtung strenger Firewalls und lokaler Antiviren-Scanner für alle KIM-Anhänge.",
+      "Regelmäßige Durchführung von Backups und Durchführung von IT-Sicherheitsschulungen des Praxisteams.",
+      "Einhaltung der Richtlinien der Kassenärztlichen Bundesvereinigung (KBV) zur IT-Sicherheit."
+    ];
+  } else if (textLower.includes("ki") || textLower.includes("künstliche") || textLower.includes("dermatologie")) {
+    actionItems = [
+      "Evaluierung von KI-gestützten Diagnosetools hinsichtlich ihrer PVS-Integration.",
+      "Klärung haftungsrechtlicher Fragen und Einholen von Einverständniserklärungen der Patienten.",
+      "Nutzung von KI-Systemen primär als 'Zweitmeinung' zur Entlastung bei Routineuntersuchungen.",
+      "Regelmäßige Fortbildung des Fachpersonals zur korrekten Interpretation von KI-Analysen."
+    ];
+  } else if (textLower.includes("telemedizin") || textLower.includes("geriatrie") || textLower.includes("videosprechstunde")) {
+    actionItems = [
+      "Einrichtung einer stabilen Videoplattform mit zertifiziertem Datenschutz-Siegel.",
+      "Einbindung von Angehörigen oder Pflegediensten zur technischen Unterstützung älterer Patienten.",
+      "Abrechnungsprüfung geriatriespezifischer Telemedizin-Zuschläge im EBM.",
+      "Kombination von Telemonitoring mit regelmäßigen physischen Hausbesuchen."
+    ];
+  } else {
+    actionItems = [
+      "Schnittstellenkompatibilität mit dem Praxisverwaltungssystem (PVS) prüfen.",
+      "Datenschutzrechtliche Konformität (DSGVO) bei der Datenspeicherung sicherstellen.",
+      "Schulung aller Praxismitarbeiter zur neuen digitalen Anwendung organisieren.",
+      "Workflow-Anpassungen im Praxisalltag schrittweise evaluieren und dokumentieren."
+    ];
+  }
+
+  const qmdTitle = title || "Eintrag zur Praxis-IT Digitalisierung";
+  const dateStr = new Date().toISOString().split("T")[0];
+
+  let summary = `---
+title: "${qmdTitle}"
+date: "${dateStr}"
+category: "${targetFile}"
+---
+
+### 📝 Executive Summary (Resiliente Offline-Synthese)
+Dieses Dokument fasst die wichtigsten praxisrelevanten Aspekte zum Thema **${qmdTitle}** zusammen. Es dient als strukturierte Ergänzung für die Fachrubrik \`${targetFile}\` im Repositorium \`bsenst/praxis-it\`.
+
+### 💡 Haupterkenntnisse & Kernaussagen
+`;
+
+  for (const b of bullets) {
+    summary += `- ${b}\n`;
+  }
+
+  summary += `
+### 🛠️ Handlungsempfehlungen für die Praxis
+Um diese Entwicklungen erfolgreich und sicher im Praxisalltag umzusetzen, sollten folgende Schritte geprüft werden:
+`;
+
+  for (const action of actionItems) {
+    summary += `- [ ] **${action}**\n`;
+  }
+
+  summary += `
+---
+*Hinweis: Diese Zusammenfassung wurde von der lokalen, ausfallsicheren NLP-Heuristik-Engine kompiliert, um ununterbrochene Arbeitsfähigkeit bei Netzwerk- oder API-Störungen zu garantieren.*`;
+
+  return summary;
+}
+
 // Endpoint to run the Multi-Agent workflow
 app.post("/api/check-article", async (req, res) => {
   const { articleTitle, articleText, modelId, hfToken } = req.body;
@@ -234,31 +412,40 @@ Respond STRICTLY in JSON format with this structure:
 
     let checkResultJson: any = { isPresent: false, matchingFilename: null, bestFitFilename: "allgemeinmedizin.qmd", reasoning: "Standard fallback" };
     
-    // Call Gemini to do the Agent 1 reasoning (Structured JSON)
-    const checkResponse = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: checkPrompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            isPresent: { type: Type.BOOLEAN },
-            matchingFilename: { type: Type.STRING },
-            bestFitFilename: { type: Type.STRING },
-            reasoning: { type: Type.STRING },
-          },
-          required: ["isPresent", "matchingFilename", "bestFitFilename", "reasoning"],
-        }
-      }
-    });
-
     try {
+      // Call Gemini to do the Agent 1 reasoning (Structured JSON)
+      const checkResponse = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: checkPrompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              isPresent: { type: Type.BOOLEAN },
+              matchingFilename: { type: Type.STRING },
+              bestFitFilename: { type: Type.STRING },
+              reasoning: { type: Type.STRING },
+            },
+            required: ["isPresent", "matchingFilename", "bestFitFilename", "reasoning"],
+          }
+        }
+      });
+
       checkResultJson = JSON.parse(checkResponse.text || "{}");
       addLog("GitHub Checker Agent", "success", `Analysis complete. isPresent: ${checkResultJson.isPresent}. Best file match: ${checkResultJson.bestFitFilename}.`);
       addLog("GitHub Checker Agent", "info", `Reasoning: ${checkResultJson.reasoning}`);
-    } catch (e) {
-      addLog("GitHub Checker Agent", "error", "Failed to parse checker agent response as JSON. Using safe defaults.");
+    } catch (e: any) {
+      addLog("GitHub Checker Agent", "warning", `Online checker call failed (${e.message}). Invoking resilient offline-linguistic engine...`);
+      const offlineCheck = offlineSemanticCheckerTS(articleTitle, articleText, repoFilesList);
+      checkResultJson = {
+        isPresent: offlineCheck.isPresent,
+        matchingFilename: offlineCheck.matchingFilename,
+        bestFitFilename: offlineCheck.bestFitFilename,
+        reasoning: offlineCheck.reasoning
+      };
+      addLog("GitHub Checker Agent", "success", `Offline Analysis complete. isPresent: ${checkResultJson.isPresent}. Best file match: ${checkResultJson.bestFitFilename}.`);
+      addLog("GitHub Checker Agent", "info", `Offline Reasoning: ${checkResultJson.reasoning}`);
     }
 
     let summaryText = "";
@@ -278,30 +465,35 @@ ${articleText}
 
 Generate the Quarto Markdown summary block:`;
 
-      // Check which engine/model to run
-      if (modelId.startsWith("gemini")) {
-        // Run via Gemini (acting as simulated small model or directly)
-        const geminiSummary = await ai.models.generateContent({
-          model: "gemini-3.5-flash",
-          contents: summaryPrompt,
-          config: {
-            systemInstruction: "You are an expert medical IT editor. Generate dense, structured summaries in flawless German.",
-          }
-        });
-        summaryText = geminiSummary.text || "Failed to generate summary.";
-      } else {
-        // Run via Hugging Face
-        try {
-          addLog("Summarizer Agent", "info", `Contacting Hugging Face Inference API for ${modelId}...`);
-          summaryText = await queryHuggingFace(modelId, summaryPrompt, hfToken);
-        } catch (hfError: any) {
-          addLog("Summarizer Agent", "warning", `Hugging Face call failed: ${hfError.message}. Falling back to pre-configured local engine (Gemini Flash as simulated SML).`);
-          const geminiBackup = await ai.models.generateContent({
+      try {
+        // Check which engine/model to run
+        if (modelId.startsWith("gemini")) {
+          // Run via Gemini (acting as simulated small model or directly)
+          const geminiSummary = await ai.models.generateContent({
             model: "gemini-3.5-flash",
             contents: summaryPrompt,
+            config: {
+              systemInstruction: "You are an expert medical IT editor. Generate dense, structured summaries in flawless German.",
+            }
           });
-          summaryText = geminiBackup.text || "Failed to generate summary via fallback.";
+          summaryText = geminiSummary.text || "Failed to generate summary.";
+        } else {
+          // Run via Hugging Face
+          try {
+            addLog("Summarizer Agent", "info", `Contacting Hugging Face Inference API for ${modelId}...`);
+            summaryText = await queryHuggingFace(modelId, summaryPrompt, hfToken);
+          } catch (hfError: any) {
+            addLog("Summarizer Agent", "warning", `Hugging Face call failed: ${hfError.message}. Falling back to pre-configured local engine (Gemini Flash as simulated SML).`);
+            const geminiBackup = await ai.models.generateContent({
+              model: "gemini-3.5-flash",
+              contents: summaryPrompt,
+            });
+            summaryText = geminiBackup.text || "Failed to generate summary via fallback.";
+          }
         }
+      } catch (backupError: any) {
+        addLog("Summarizer Agent", "warning", `All online summarizer services failed (${backupError.message}). Compiling resilient offline heuristics...`);
+        summaryText = generateOfflineSummaryTS(articleTitle, articleText, checkResultJson.bestFitFilename);
       }
 
       addLog("Summarizer Agent", "success", `Summary successfully created! (${summaryText.length} characters)`);

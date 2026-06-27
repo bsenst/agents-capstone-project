@@ -2,13 +2,14 @@
 """
 Streamlit Praxis-IT Agent Workspace
 Allows interacting with two agents to check, summarize, and link articles against bsenst/praxis-it.
-Fully prepared for direct deployment to Streamlit Cloud (CPU-friendly Serverless APIs).
+Fully prepared for direct deployment to Streamlit Cloud (CPU-friendly Serverless APIs with resilient offline fallbacks).
 """
 
 import streamlit as st
 import requests
 import json
 import os
+import re
 from datetime import datetime
 
 # --- CONFIG & STYLING ---
@@ -119,7 +120,7 @@ def call_huggingface_api(model_id, prompt, hf_token):
     }
     
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        response = requests.post(url, headers=headers, json=payload, timeout=15)
         if response.status_code == 200:
             res_json = response.json()
             if isinstance(res_json, list) and len(res_json) > 0:
@@ -145,7 +146,7 @@ def call_gemini_api(prompt, gemini_key):
         "contents": [{"parts": [{"text": prompt}]}]
     }
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=20)
+        response = requests.post(url, headers=headers, json=payload, timeout=15)
         if response.status_code == 200:
             data = response.json()
             return data["candidates"][0]["content"]["parts"][0]["text"]
@@ -155,6 +156,154 @@ def call_gemini_api(prompt, gemini_key):
         st.error(f"Gemini connection error: {str(e)}")
     return None
 
+# --- RESILIENT OFFLINE INTELLIGENT COMPILATION ENGINES ---
+def offline_semantic_checker(title, text, files):
+    """Linguistically aligns and scores keywords offline to match the best .qmd file."""
+    file_keywords = {
+        "it-sicherheit": ["sicherheit", "cyber", "phishing", "angriff", "schadsoftware", "schwachstelle", "firewall", "passwort", "schlüssel", "smc-b", "ehba", "signatur", "virus", "viren", "malware", "ransomware", "trojaner"],
+        "kimdienst": ["kim", "telematik", "nachricht", "verschlüsselung", "e-mail", "ti-dienst", "komunikation"],
+        "dermatologie": ["dermatologie", "haut", "melanom", "muttermal", "scan", "auflicht", "arzt", "hautkrebs", "flecken"],
+        "diabetologie": ["diabetes", "diabetologie", "insulin", "blutzucker", "glukose", "sensor"],
+        "geriatrie": ["geriatrie", "altenmedizin", "senioren", "alter", "multimorbidität", "pflege", "angehörige"],
+        "allgemeinmedizin": ["allgemeinmedizin", "hausarzt", "praxis", "patienten", "versorgung", "ebm", "arztpraxis"],
+        "datenschutz": ["datenschutz", "dsgvo", "daten", "privatsphäre", "schweigepflicht", "patientendaten", "gespeichert"],
+        "agentische-ki": ["agent", "coprocessor", "workflow", "automatisierung", "mcp", "agenten", "entscheidung"],
+        "grosse-sprachmodelle": ["llm", "sprachmodell", "gpt", "llama", "qwen", "gemini", "prompts", "generative"],
+        "kuenstliche-intelligenz": ["ki", "künstliche", "intelligenz", "deep learning", "maschinelles", "lernen", "neuronalen"],
+        "telemedizin": ["telemedizin", "video", "videosprechstunde", "monitoring", "online", "fernbehandlung", "sprechstunde"],
+        "anamneseerhebung": ["anamnese", "befragung", "erhebung", "fragebogen", "aufnahme"],
+        "ambulantes-operieren": ["operieren", "ambulant", "chirurgie", "op", "eingriff", "chirurgisch"],
+        "apotheken": ["apotheke", "rezept", "e-rezept", "medikation", "arzneimittel", "rezeptfrei"],
+        "arbeitsmedizin": ["arbeit", "arbeitsmedizin", "berufsgenossenschaft", "betriebsmedizin", "arbeitsplatz"],
+        "augenheilkunde": ["auge", "augen", "ophtha", "sehtest", "glaukom", "visus"],
+        "ausbildung": ["ausbildung", "mfa", "studium", "weiterbildung", "lehre", "azubi"],
+        "buchhaltung": ["buchhaltung", "rechnung", "finanzen", "steuer", "ebm", "abrechnung", "honorar"],
+        "chatbot": ["chatbot", "chat", "bot", "assistent", "interaktiv", "dialog"],
+    }
+    
+    combined_text = ((title if title else "") + " " + text).lower()
+    best_file = "allgemeinmedizin.qmd"
+    best_score = 0
+    
+    for f in files:
+        f_name = f.replace(".qmd", "")
+        score = 0
+        if f_name in combined_text:
+            score += 25
+            
+        keywords = file_keywords.get(f_name, [])
+        for kw in keywords:
+            if kw in combined_text:
+                score += combined_text.count(kw) * 4
+                
+        if score > best_score:
+            best_score = score
+            best_file = f
+            
+    # Simple semantic duplicate check: if title closely matches a file name
+    is_present = False
+    matching_file = None
+    title_clean = re.sub(r'[^a-zA-Z0-9\s]', '', (title if title else "")).lower()
+    
+    if title_clean:
+        for f in files:
+            f_clean = f.replace(".qmd", "").replace("-", " ")
+            if f_clean in title_clean or title_clean in f_clean:
+                is_present = True
+                matching_file = f
+                break
+                
+    if is_present:
+        reasoning = f"Die Offline-NLP-Engine identifizierte eine genaue thematische Übereinstimmung des Artikeltitels mit der bestehenden Datei '{matching_file}'."
+    else:
+        reasoning = f"Die Offline-Linguistik-Engine hat den Artikel analysiert und mit einer Konfidenz von {best_score} Punkten der am besten passenden Kategorie '{best_file}' zugeordnet."
+        
+    return is_present, matching_file, best_file, reasoning
+
+
+def generate_offline_summary(title, text, target_file):
+    """Fallback compiler which generates beautifully structured Quarto Markdown completely offline."""
+    paragraphs = [p.strip() for p in text.split("\n") if len(p.strip()) > 30]
+    sentences = []
+    for p in paragraphs:
+        sents = re.split(r'(?<=[.!?]) +', p)
+        sentences.extend([s.strip() for s in sents if len(s.strip()) > 15])
+        
+    keywords = ["ki", "künstliche intelligenz", "sicherheit", "kim", "praxis", "arzt", "digital", "pvs", "telemedizin", "integration", "risiko", "patienten", "datenschutz"]
+    highlight_candidates = []
+    for s in sentences:
+        s_lower = s.lower()
+        score = sum(3 if kw in s_lower else 0 for kw in keywords)
+        if 40 < len(s) < 220:
+            highlight_candidates.append((score, s))
+            
+    highlight_candidates.sort(key=lambda x: x[0], reverse=True)
+    bullets = [item[1] for item in highlight_candidates[:4]]
+    
+    if len(bullets) < 3:
+        bullets = sentences[:3]
+
+    bullets = [b.rstrip(".") + "." for b in bullets]
+    text_lower = text.lower()
+    
+    if "sicherheit" in text_lower or "kim" in text_lower or "risiko" in text_lower or "schwachstelle" in text_lower:
+        action_items = [
+            "Überprüfung der Verschlüsselungsprotokolle und privaten Schlüssel (eHBA/SMC-B) im Praxisnetzwerk.",
+            "Einrichtung strenger Firewalls und lokaler Antiviren-Scanner für alle KIM-Anhänge.",
+            "Regelmäßige Durchführung von Backups und Durchführung von IT-Sicherheitsschulungen des Praxisteams.",
+            "Einhaltung der Richtlinien der Kassenärztlichen Bundesvereinigung (KBV) zur IT-Sicherheit."
+        ]
+    elif "ki" in text_lower or "künstliche" in text_lower or "dermatologie" in text_lower:
+        action_items = [
+            "Evaluierung von KI-gestützten Diagnosetools hinsichtlich ihrer PVS-Integration.",
+            "Klärung haftungsrechtlicher Fragen und Einholen von Einverständniserklärungen der Patienten.",
+            "Nutzung von KI-Systemen primär als 'Zweitmeinung' zur Entlastung bei Routineuntersuchungen.",
+            "Regelmäßige Fortbildung des Fachpersonals zur korrekten Interpretation von KI-Analysen."
+        ]
+    elif "telemedizin" in text_lower or "geriatrie" in text_lower or "videosprechstunde" in text_lower:
+        action_items = [
+            "Einrichtung einer stabilen Videoplattform mit zertifiziertem Datenschutz-Siegel.",
+            "Einbindung von Angehörigen oder Pflegediensten zur technischen Unterstützung älterer Patienten.",
+            "Abrechnungsprüfung geriatriespezifischer Telemedizin-Zuschläge im EBM.",
+            "Kombination von Telemonitoring mit regelmäßigen physischen Hausbesuchen."
+        ]
+    else:
+        action_items = [
+            "Schnittstellenkompatibilität mit dem Praxisverwaltungssystem (PVS) prüfen.",
+            "Datenschutzrechtliche Konformität (DSGVO) bei der Datenspeicherung sicherstellen.",
+            "Schulung aller Praxismitarbeiter zur neuen digitalen Anwendung organisieren.",
+            "Workflow-Anpassungen im Praxisalltag schrittweise evaluieren und dokumentieren."
+        ]
+
+    qmd_title = title if title else "Eintrag zur Praxis-IT Digitalisierung"
+    
+    summary = f"""---
+title: "{qmd_title}"
+date: "{datetime.now().strftime('%Y-%m-%d')}"
+category: "{target_file}"
+---
+
+### 📝 Executive Summary (Resiliente Offline-Synthese)
+Dieses Dokument fasst die wichtigsten praxisrelevanten Aspekte zum Thema **{qmd_title}** zusammen. Es dient als strukturierte Ergänzung für die Fachrubrik `{target_file}` im Repositorium `bsenst/praxis-it`.
+
+### 💡 Haupterkenntnisse & Kernaussagen
+"""
+    for b in bullets:
+        summary += f"- {b}\n"
+        
+    summary += """
+### 🛠️ Handlungsempfehlungen für die Praxis
+Um diese Entwicklungen erfolgreich und sicher im Praxisalltag umzusetzen, sollten folgende Schritte geprüft werden:
+"""
+    for action in action_items:
+        summary += f"- [ ] **{action}**\n"
+        
+    summary += f"""
+---
+*Hinweis: Diese Zusammenfassung wurde von der lokalen, ausfallsicheren NLP-Heuristik-Engine kompiliert, um ununterbrochene Arbeitsfähigkeit bei Netzwerk- oder API-Störungen zu garantieren.*"""
+    return summary
+
+
 # --- SIDEBAR (st.sidebar) ---
 with st.sidebar:
     st.markdown("### 🛠️ Configuration & Models")
@@ -162,7 +311,7 @@ with st.sidebar:
     # Model Selection (st.selectbox)
     model_provider = st.selectbox(
         "Agent Engine Provider",
-        ["Hugging Face (Serverless CPU)", "Gemini Cloud Proxy"]
+        ["Hugging Face (Serverless CPU)", "Gemini Cloud Proxy", "Local Resilient Offline-Engine"]
     )
     
     if model_provider == "Hugging Face (Serverless CPU)":
@@ -176,10 +325,15 @@ with st.sidebar:
         )
         hf_token = st.text_input("Hugging Face API Token", type="password", help="Hole dir einen kostenlosen Token von huggingface.co")
         gemini_key = ""
-    else:
+    elif model_provider == "Gemini Cloud Proxy":
         model_id = "gemini-1.5-flash"
         gemini_key = st.text_input("Gemini API Key", type="password", value=os.environ.get("GEMINI_API_KEY", ""))
         hf_token = ""
+    else:
+        model_id = "local-offline-nlp"
+        gemini_key = ""
+        hf_token = ""
+        st.info("🔌 **Lokaler Modus aktiv:** Verwendet intelligente, tokenbasierte Heuristiken. 100% ausfallsicher ohne Netzwerkaufrufe.")
 
     # Repository Contents Expander
     st.markdown("---")
@@ -239,7 +393,7 @@ if st.button("🚀 Agenten-Pipeline ausführen", use_container_width=True):
                 "msg": msg
             })
 
-        add_log("MCP Gateway", "info", f"Verbindung mit GitHub MCP Server wird aufgebaut...")
+        add_log("MCP Gateway", "info", "Verbindung mit GitHub MCP Server wird aufgebaut...")
         add_log("MCP Gateway", "success", f"Erfolgreich {len(repo_files)} .qmd-Dateien eingelesen.")
 
         with st.spinner("🤖 Agenten analysieren den Text und stimmen sich ab..."):
@@ -247,8 +401,12 @@ if st.button("🚀 Agenten-Pipeline ausführen", use_container_width=True):
             # --- AGENT 1: GitHub Checker Agent ---
             add_log("GitHub Checker Agent", "info", f"Prüfe, ob der Inhalt bereits im Repo '{REPO_OWNER}/{REPO_NAME}' vorhanden ist.")
             
-            # Semantic prompt for checking
-            checker_prompt = f"""Du bist der "GitHub Checker Agent" für das Repositorium 'bsenst/praxis-it'.
+            # Execute offline checker or try API
+            is_present, matching_file, best_fit_file, reasoning = offline_semantic_checker(article_title, article_text, repo_files)
+            
+            if model_provider != "Local Resilient Offline-Engine":
+                # Try calling AI models for Checker
+                checker_prompt = f"""Du bist der "GitHub Checker Agent" für das Repositorium 'bsenst/praxis-it'.
 Hier sind die verfügbaren Quarto-Dokumente im Repo:
 {", ".join(repo_files)}
 
@@ -269,46 +427,36 @@ Antworte STRENG im folgenden JSON-Format:
   "reasoning": "Kurze deutsche Begründung deiner Entscheidung."
 }}"""
 
-            # Run Agent 1
-            checker_raw = None
-            if model_provider == "Gemini Cloud Proxy":
-                checker_raw = call_gemini_api(checker_prompt, gemini_key)
+                checker_raw = None
+                if model_provider == "Gemini Cloud Proxy":
+                    checker_raw = call_gemini_api(checker_prompt, gemini_key)
+                else:
+                    checker_raw = call_huggingface_api(model_id, checker_prompt, hf_token)
+
+                if checker_raw:
+                    try:
+                        cleaned_raw = checker_raw.strip().replace("```json", "").replace("```", "").strip()
+                        data = json.loads(cleaned_raw)
+                        is_present = data.get("isPresent", False)
+                        matching_file = data.get("matchingFilename")
+                        best_fit_file = data.get("bestFitFilename", best_fit_file)
+                        reasoning = data.get("reasoning", reasoning)
+                        add_log("GitHub Checker Agent", "success", f"API-Analyse abgeschlossen. Vorhanden: {is_present}. Bester Match: {best_fit_file}.")
+                    except Exception:
+                        add_log("GitHub Checker Agent", "warning", "Konnte JSON-Antwort nicht parsen, verwende robustes Offline-Linguistik-Ergebnis.")
+                else:
+                    add_log("GitHub Checker Agent", "warning", "Modellaufruf fehlgeschlagen. Heuristische Offline-Zuordnung erfolgreich angewendet.")
             else:
-                checker_raw = call_huggingface_api(model_id, checker_prompt, hf_token)
+                add_log("GitHub Checker Agent", "success", f"Offline-Zuordnung abgeschlossen. Bester Match: {best_fit_file}.")
 
-            # Parse Agent 1 Response
-            is_present = False
-            matching_file = None
-            best_fit_file = "allgemeinmedizin.qmd"
-            reasoning = "Standard Klassifizierung aufgrund von Verbindungsfehlern."
-
-            if checker_raw:
-                try:
-                    # Strip markdown blocks if any
-                    cleaned_raw = checker_raw.strip().replace("```json", "").replace("```", "").strip()
-                    data = json.loads(cleaned_raw)
-                    is_present = data.get("isPresent", False)
-                    matching_file = data.get("matchingFilename")
-                    best_fit_file = data.get("bestFitFilename", "allgemeinmedizin.qmd")
-                    reasoning = data.get("reasoning", "")
-                    
-                    add_log("GitHub Checker Agent", "success", f"Analyse abgeschlossen. Vorhanden: {is_present}. Bester Match: {best_fit_file}.")
-                except Exception:
-                    # Manual basic substring matching backup
-                    add_log("GitHub Checker Agent", "warning", "Konnte JSON-Antwort nicht parsen, führe heuristischen Fallback aus.")
-                    for f in repo_files:
-                        keyword = f.replace(".qmd", "")
-                        if keyword in article_text.lower() or keyword in article_title.lower():
-                            best_fit_file = f
-                            reasoning = f"Heuristische Zuordnung zur Datei {f} basierend auf Keyword-Übereinstimmung."
-                            break
-            
             # --- AGENT 2: Summarizer Agent ---
             summary_text = ""
             if not is_present:
                 add_log("Summarizer Agent", "info", f"Aktiviert! Erstelle Executive Summary für '{best_fit_file}'...")
                 
-                summarizer_prompt = f"""Du bist der "Summarizer Agent" für praxis-it.
+                # Try calling AI models or use local compiler
+                if model_provider != "Local Resilient Offline-Engine":
+                    summarizer_prompt = f"""Du bist der "Summarizer Agent" für praxis-it.
 Erstelle eine prägnante, professionelle Zusammenfassung des Artikels auf Deutsch.
 Formatiere sie in sauberem Quarto Markdown (.qmd), bereit zur Integration in die Datei '{best_fit_file}'.
 
@@ -317,15 +465,20 @@ Text: {article_text}
 
 Zusammenfassung in Quarto-Format:"""
 
-                if model_provider == "Gemini Cloud Proxy":
-                    summary_text = call_gemini_api(summarizer_prompt, gemini_key)
+                    if model_provider == "Gemini Cloud Proxy":
+                        summary_text = call_gemini_api(summarizer_prompt, gemini_key)
+                    else:
+                        summary_text = call_huggingface_api(model_id, summarizer_prompt, hf_token)
+                    
+                    if summary_text:
+                        add_log("Summarizer Agent", "success", f"Zusammenfassung über API erfolgreich generiert ({len(summary_text)} Zeichen).")
+                    else:
+                        add_log("Summarizer Agent", "warning", "API konnte keine Zusammenfassung liefern. Kompiliere resiliente Offline-Heuristik...")
+                        summary_text = generate_offline_summary(article_title, article_text, best_fit_file)
                 else:
-                    summary_text = call_huggingface_api(model_id, summarizer_prompt, hf_token)
-                
-                if summary_text:
-                    add_log("Summarizer Agent", "success", f"Zusammenfassung erfolgreich generiert ({len(summary_text)} Zeichen).")
-                else:
-                    summary_text = "*Zusammenfassung konnte nicht generiert werden.*"
+                    add_log("Summarizer Agent", "info", "Generiere resiliente, offline-basierte Zusammenfassung...")
+                    summary_text = generate_offline_summary(article_title, article_text, best_fit_file)
+                    add_log("Summarizer Agent", "success", f"Offline-Heuristik-Dokument erfolgreich kompiliert ({len(summary_text)} Zeichen).")
             else:
                 add_log("Summarizer Agent", "info", "Deaktiviert, da der Artikel bereits im Repositorium vorhanden ist.")
 
