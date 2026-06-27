@@ -156,6 +156,61 @@ def call_gemini_api(prompt, gemini_key):
         st.error(f"Gemini connection error: {str(e)}")
     return None
 
+@st.cache_resource
+def load_local_transformers_pipeline(model_id):
+    """Loads a Hugging Face model locally using the transformers library."""
+    try:
+        from transformers import pipeline
+        import torch
+        st.info(f"⏳ Lade Modell '{model_id}' lokal mit PyTorch (dies kann beim ersten Mal mehrere Minuten dauern)...")
+        device = 0 if torch.cuda.is_available() else -1
+        pipe = pipeline("text-generation", model=model_id, device=device)
+        st.success(f"✅ Modell '{model_id}' erfolgreich in den Speicher geladen (Device: {'GPU' if device == 0 else 'CPU'}).")
+        return pipe
+    except Exception as e:
+        st.error(f"Fehler beim Laden von transformers oder des lokalen Modells: {str(e)}")
+        st.markdown(\"\"\"
+        ### 💡 Behebung von Verbindungsproblemen und lokales Setup:
+        Wenn Sie diesen Fehler lokal sehen, stellen Sie sicher, dass:
+        1. Die erforderlichen Bibliotheken installiert sind:
+           \`\`\`bash
+           pip install transformers torch torchvision torchaudio
+           \`\`\`
+        2. Sie bei Hugging Face eingeloggt sind (insbesondere für gated Modelle wie Llama-3.2):
+           \`\`\`bash
+           hf auth login
+           \`\`\`
+           *Oder über die Kommandozeile:*
+           \`\`\`bash
+           huggingface-cli login
+           \`\`\`
+        3. Sie genügend RAM/VRAM für das gewählte Modell haben.
+        \"\"\")
+        return None
+
+def call_local_transformers_api(model_id, prompt):
+    """Executes prediction locally using the local transformers pipeline."""
+    pipe = load_local_transformers_pipeline(model_id)
+    if not pipe:
+        return None
+    try:
+        messages = [
+            {"role": "user", "content": prompt}
+        ]
+        outputs = pipe(messages, max_new_tokens=600, temperature=0.7)
+        if isinstance(outputs, list) and len(outputs) > 0:
+            res = outputs[0]
+            if "generated_text" in res:
+                gen = res["generated_text"]
+                if isinstance(gen, list):
+                    return gen[-1].get("content", "")
+                return gen
+        return str(outputs)
+    except Exception as e:
+        st.error(f"Fehler bei der lokalen Textgenerierung: {str(e)}")
+    return None
+
+
 # --- RESILIENT OFFLINE INTELLIGENT COMPILATION ENGINES ---
 def offline_semantic_checker(title, text, files):
     """Linguistically aligns and scores keywords offline to match the best .qmd file."""
@@ -307,32 +362,12 @@ Um diese Entwicklungen erfolgreich und sicher im Praxisalltag umzusetzen, sollte
 with st.sidebar:
     st.markdown("### 🛠️ Configuration & Models")
     
-    # Model Selection (st.selectbox)
-    model_provider = st.selectbox(
-        "Agent Engine Provider",
-        ["Hugging Face (Serverless CPU)", "Gemini Cloud Proxy", "Local Resilient Offline-Engine"]
-    )
-    
-    if model_provider == "Hugging Face (Serverless CPU)":
-        model_id = st.selectbox(
-            "Select Small Language Model (SLM)",
-            [
-                "meta-llama/Llama-3.2-3B-Instruct",
-                "Qwen/Qwen2.5-7B-Instruct",
-                "HuggingFaceH4/zephyr-7b-beta"
-            ]
-        )
-        hf_token = st.text_input("Hugging Face API Token", type="password", help="Hole dir einen kostenlosen Token von huggingface.co")
-        gemini_key = ""
-    elif model_provider == "Gemini Cloud Proxy":
-        model_id = "gemini-1.5-flash"
-        gemini_key = st.text_input("Gemini API Key", type="password", value=os.environ.get("GEMINI_API_KEY", ""))
-        hf_token = ""
-    else:
-        model_id = "local-offline-nlp"
-        gemini_key = ""
-        hf_token = ""
-        st.info("🔌 **Lokaler Modus aktiv:** Verwendet intelligente, tokenbasierte Heuristiken. 100% ausfallsicher ohne Netzwerkaufrufe.")
+    # Exclusive Local Resilient Offline-Engine Mode
+    st.info("💻 **Lokale Heuristik-Engine aktiv:** Die 'Local Resilient Offline-Engine' ist exklusiv aktiv. Sie arbeitet zu 100% netzwerkunabhängig und ausfallsicher mittels intelligenter linguistischer Heuristiken.")
+    model_provider = "Local Resilient Offline-Engine"
+    model_id = "local-offline-nlp"
+    hf_token = ""
+    gemini_key = ""
 
     # Repository Contents Expander
     st.markdown("---")
@@ -427,6 +462,8 @@ Antworte STRENG im folgenden JSON-Format:
                 checker_raw = None
                 if model_provider == "Gemini Cloud Proxy":
                     checker_raw = call_gemini_api(checker_prompt, gemini_key)
+                elif model_provider == "Local PyTorch (transformers library)":
+                    checker_raw = call_local_transformers_api(model_id, checker_prompt)
                 else:
                     checker_raw = call_huggingface_api(model_id, checker_prompt, hf_token)
 
@@ -463,6 +500,8 @@ Zusammenfassung in Quarto-Format:\"\"\"
 
                     if model_provider == "Gemini Cloud Proxy":
                         summary_text = call_gemini_api(summarizer_prompt, gemini_key)
+                    elif model_provider == "Local PyTorch (transformers library)":
+                        summary_text = call_local_transformers_api(model_id, summarizer_prompt)
                     else:
                         summary_text = call_huggingface_api(model_id, summarizer_prompt, hf_token)
                     

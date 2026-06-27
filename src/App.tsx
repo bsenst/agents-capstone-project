@@ -34,22 +34,10 @@ import { PYTHON_CODE } from "./pythonCode";
 
 const MODELS: ModelOption[] = [
   {
-    id: "meta-llama/Llama-3.2-3B-Instruct",
-    name: "Llama 3.2 (3B) - Instruct",
-    provider: "huggingface",
-    description: "Lightweight, state-of-the-art open-source instruction model. Ideal for low-latency CPU reasoning."
-  },
-  {
-    id: "Qwen/Qwen2.5-7B-Instruct",
-    name: "Qwen 2.5 (7B) - Instruct",
-    provider: "huggingface",
-    description: "Highly intelligent and multilingual open-source model. Excellent for German language structured tasks."
-  },
-  {
-    id: "gemini-3.5-flash",
-    name: "Gemini 3.5 Flash (SML Proxy)",
+    id: "local-offline-nlp",
+    name: "Local Resilient Offline-Engine",
     provider: "gemini",
-    description: "High-performance backing model running on the AI Studio server-side environment. Zero key required."
+    description: "Intelligente, netzwerkunabhängige linguistische Heuristik-Engine. 100% ausfallsicher."
   }
 ];
 
@@ -88,7 +76,7 @@ export default function App() {
   // Form State
   const [articleTitle, setArticleTitle] = useState("");
   const [articleText, setArticleText] = useState("");
-  const [selectedModel, setSelectedModel] = useState(MODELS[2].id); // Default to Gemini Proxy
+  const [selectedModel, setSelectedModel] = useState(MODELS[0].id); // Default to Local Offline Engine
   const [hfToken, setHfToken] = useState("");
 
   // App UI State
@@ -246,56 +234,19 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* --- st.selectbox: Model Configuration --- */}
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm font-semibold flex items-center gap-1.5 text-gray-700">
-                    <Cpu size={16} className="text-[#FF4B4B]" />
-                    <span>Select Model (st.selectbox)</span>
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={selectedModel}
-                      onChange={(e) => setSelectedModel(e.target.value)}
-                      className="w-full bg-white border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4B4B]/50 focus:border-[#FF4B4B] appearance-none"
-                      id="st_model_select"
-                    >
-                      {MODELS.map((model) => (
-                        <option key={model.id} value={model.id}>
-                          {model.name}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="absolute right-3 top-3 pointer-events-none border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-500 w-0 h-0"></div>
+                {/* --- Active Offline Engine Info --- */}
+                <div className="flex flex-col gap-2.5 bg-white p-4 rounded-md border border-gray-200 shadow-sm">
+                  <div className="flex items-center gap-2 text-[#FF4B4B] font-semibold text-sm">
+                    <Cpu size={16} />
+                    <span>Agenten-Engine aktiv</span>
                   </div>
+                  <p className="text-xs text-gray-700 font-medium font-mono bg-gray-50 border border-gray-150 px-2 py-1 rounded">
+                    Local Resilient Offline-Engine
+                  </p>
                   <p className="text-[11px] text-gray-500 leading-normal mt-1">
-                    {MODELS.find((m) => m.id === selectedModel)?.description}
+                    Diese Engine ist 100% netzwerkunabhängig, ausfallsicher und arbeitet mittels intelligenter linguistischer Heuristiken direkt in diesem Workspace.
                   </p>
                 </div>
-
-                {/* --- st.text_input: Hugging Face Token --- */}
-                {MODELS.find((m) => m.id === selectedModel)?.provider === "huggingface" && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex flex-col gap-2 bg-yellow-50 border border-yellow-200 p-3 rounded-md"
-                  >
-                    <label className="text-sm font-semibold flex items-center gap-1.5 text-yellow-800">
-                      <Key size={14} />
-                      <span>Hugging Face Token</span>
-                    </label>
-                    <input
-                      type="password"
-                      placeholder="hf_..."
-                      value={hfToken}
-                      onChange={(e) => setHfToken(e.target.value)}
-                      className="w-full bg-white border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF4B4B]/50 focus:border-[#FF4B4B]"
-                      id="st_hf_token"
-                    />
-                    <p className="text-[10px] text-yellow-700 leading-relaxed">
-                      Optional. If omitted, the server automatically uses the high-speed <strong>Gemini Flash</strong> backing agent configured with equivalent SML persona parameters to ensure 100% execution uptime!
-                    </p>
-                  </motion.div>
-                )}
 
                 {/* --- st.expander: Repository Content Navigator --- */}
                 <div className="border border-gray-200 rounded-md bg-white overflow-hidden shadow-sm">

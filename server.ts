@@ -410,93 +410,27 @@ Respond STRICTLY in JSON format with this structure:
   "reasoning": "A concise explanation of why it is present or why the selected file is the best fit, in German."
 }`;
 
-    let checkResultJson: any = { isPresent: false, matchingFilename: null, bestFitFilename: "allgemeinmedizin.qmd", reasoning: "Standard fallback" };
-    
-    try {
-      // Call Gemini to do the Agent 1 reasoning (Structured JSON)
-      const checkResponse = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: checkPrompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              isPresent: { type: Type.BOOLEAN },
-              matchingFilename: { type: Type.STRING },
-              bestFitFilename: { type: Type.STRING },
-              reasoning: { type: Type.STRING },
-            },
-            required: ["isPresent", "matchingFilename", "bestFitFilename", "reasoning"],
-          }
-        }
-      });
+    // 2. RUN AGENT 1: GitHub Checker Agent (Using exclusively Local Resilient Offline-Engine)
+    addLog("GitHub Checker Agent", "info", "Executing local resilient linguistic matching engine...");
 
-      checkResultJson = JSON.parse(checkResponse.text || "{}");
-      addLog("GitHub Checker Agent", "success", `Analysis complete. isPresent: ${checkResultJson.isPresent}. Best file match: ${checkResultJson.bestFitFilename}.`);
-      addLog("GitHub Checker Agent", "info", `Reasoning: ${checkResultJson.reasoning}`);
-    } catch (e: any) {
-      addLog("GitHub Checker Agent", "warning", `Online checker call failed (${e.message}). Invoking resilient offline-linguistic engine...`);
-      const offlineCheck = offlineSemanticCheckerTS(articleTitle, articleText, repoFilesList);
-      checkResultJson = {
-        isPresent: offlineCheck.isPresent,
-        matchingFilename: offlineCheck.matchingFilename,
-        bestFitFilename: offlineCheck.bestFitFilename,
-        reasoning: offlineCheck.reasoning
-      };
-      addLog("GitHub Checker Agent", "success", `Offline Analysis complete. isPresent: ${checkResultJson.isPresent}. Best file match: ${checkResultJson.bestFitFilename}.`);
-      addLog("GitHub Checker Agent", "info", `Offline Reasoning: ${checkResultJson.reasoning}`);
-    }
+    const offlineCheck = offlineSemanticCheckerTS(articleTitle, articleText, repoFilesList);
+    const checkResultJson = {
+      isPresent: offlineCheck.isPresent,
+      matchingFilename: offlineCheck.matchingFilename,
+      bestFitFilename: offlineCheck.bestFitFilename,
+      reasoning: offlineCheck.reasoning
+    };
+
+    addLog("GitHub Checker Agent", "success", `Offline Analysis complete. isPresent: ${checkResultJson.isPresent}. Best file match: ${checkResultJson.bestFitFilename}.`);
+    addLog("GitHub Checker Agent", "info", `Offline Reasoning: ${checkResultJson.reasoning}`);
 
     let summaryText = "";
 
-    // 3. RUN AGENT 2: Summarizer Agent (only if not present)
+    // 3. RUN AGENT 2: Summarizer Agent (Using exclusively Local Resilient Offline-Engine, only if not present)
     if (!checkResultJson.isPresent) {
-      addLog("Summarizer Agent", "info", `Article not present. Activating Summarizer Agent using model: ${modelId}`);
-
-      const summaryPrompt = `You are the "Summarizer Agent" for the 'bsenst/praxis-it' Quarto markdown repository.
-Create a highly professional, well-structured executive summary of the following article in German.
-Format the summary in clean Quarto markdown (.qmd) style suitable for insertion into the target file "${checkResultJson.bestFitFilename}".
-Use headers, lists, and emphasis where appropriate. Keep it concise but dense with value.
-
-Article Title: ${articleTitle || "Untitled"}
-Article Text:
-${articleText}
-
-Generate the Quarto Markdown summary block:`;
-
-      try {
-        // Check which engine/model to run
-        if (modelId.startsWith("gemini")) {
-          // Run via Gemini (acting as simulated small model or directly)
-          const geminiSummary = await ai.models.generateContent({
-            model: "gemini-3.5-flash",
-            contents: summaryPrompt,
-            config: {
-              systemInstruction: "You are an expert medical IT editor. Generate dense, structured summaries in flawless German.",
-            }
-          });
-          summaryText = geminiSummary.text || "Failed to generate summary.";
-        } else {
-          // Run via Hugging Face
-          try {
-            addLog("Summarizer Agent", "info", `Contacting Hugging Face Inference API for ${modelId}...`);
-            summaryText = await queryHuggingFace(modelId, summaryPrompt, hfToken);
-          } catch (hfError: any) {
-            addLog("Summarizer Agent", "warning", `Hugging Face call failed: ${hfError.message}. Falling back to pre-configured local engine (Gemini Flash as simulated SML).`);
-            const geminiBackup = await ai.models.generateContent({
-              model: "gemini-3.5-flash",
-              contents: summaryPrompt,
-            });
-            summaryText = geminiBackup.text || "Failed to generate summary via fallback.";
-          }
-        }
-      } catch (backupError: any) {
-        addLog("Summarizer Agent", "warning", `All online summarizer services failed (${backupError.message}). Compiling resilient offline heuristics...`);
-        summaryText = generateOfflineSummaryTS(articleTitle, articleText, checkResultJson.bestFitFilename);
-      }
-
-      addLog("Summarizer Agent", "success", `Summary successfully created! (${summaryText.length} characters)`);
+      addLog("Summarizer Agent", "info", "Compiling structured Quarto Markdown summary completely offline using resilient linguistic heuristics...");
+      summaryText = generateOfflineSummaryTS(articleTitle, articleText, checkResultJson.bestFitFilename);
+      addLog("Summarizer Agent", "success", `Offline summary successfully created! (${summaryText.length} characters)`);
     } else {
       addLog("Summarizer Agent", "info", `Summarizer Agent idle. Article is already present in ${checkResultJson.matchingFilename}.`);
     }
