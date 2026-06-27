@@ -4,13 +4,15 @@
 > **Track:** Agents for Business / Freestyle  
 > **Target Repository:** [bsenst/praxis-it](https://github.com/bsenst/praxis-it)
 
+This prototype was designed, developed, and iterated using **Google AI Studio**, utilizing its agentic AI coding environment.
+
 ---
 
 ## 📖 Project Overview & Problem Statement
 
-Modern healthcare digitalization requires practitioners to keep up-to-date with complex, rapidly evolving IT specifications, guidelines, and security practices (e.g., Telematics Infrastructure, KIM-Dienst, eHBA, and DSGVO regulations). The repository `bsenst/praxis-it` acts as a central hub of Quarto Markdown (`.qmd`) documents documenting medical IT knowledge.
+Healthcare digitalization requires to keep up-to-date with evolving IT specifications, guidelines, and security practices (e.g., Telematics Infrastructure, KIM-Dienst, eHBA, and DSGVO regulations). The repository `bsenst/praxis-it` acts as a central hub of Quarto Markdown (`.qmd`) documents documenting medical IT knowledge.
 
-However, adding, auditing, and organizing incoming articles into this repository is highly friction-filled. Busy clinical personnel lack the time to manually search through dozens of existing `.qmd` categories, determine if an article's topic has already been covered, write formatted Quarto summaries, or determine where to insert new information.
+However, adding, auditing, and organizing incoming articles into this repository is friction-filled. Manually searching through dozens of existing `.qmd` categories, determine if an article's topic has already been covered, write formatted Quarto summaries, or determine where to insert new information.
 
 ### 💡 The Solution: Praxis-IT Agent Studio
 An intelligent **Multi-Agent Co-Processing Workspace** that automates the verification, summarization, and routing of medical-IT articles. Using a fully integrated interface, it coordinates two distinct, specialized agents to streamline this workflow while ensuring **100% operational uptime** through a **zero-dependency, resilient offline-heuristic engine**.
@@ -23,10 +25,6 @@ An intelligent **Multi-Agent Co-Processing Workspace** that automates the verifi
 | :--- | :--- |
 | **Agent / Multi-Agent System (ADK)** | A cooperative dual-agent architecture: **Agent 1 (GitHub Checker)** does semantic routing and duplicate checking; **Agent 2 (Summarizer)** handles content compilation and structured Quarto formatting. |
 | **MCP (Model Context Protocol)** | Implements a simulated **MCP JSON-RPC Gateway** which maps file registries and standardizes communication between our offline heuristic models and GitHub storage targets. |
-| **Antigravity Design** | Adheres to the *Antigravity* concept of lightweight, zero-configuration, CPU-friendly execution. No heavy-weight runtime containers, zero latency, and fully serverless-compliant. |
-| **Security & Privacy** | Under the **Local Resilient Offline-Engine**, no data leaves the browser/server environment. Perfect for clinical settings (no Patient Health Information or PHI leaked to third-party APIs) and zero API key exposure. |
-| **Deployability** | Architected for dual-stack deployment: A fast **React + Express/TypeScript** production server and a **Streamlit Cloud** (`app.py`) app for instant, CPU-friendly serverless deployment. |
-| **Agent Skills (CLI & Direct Links)** | Generates direct GitHub edit URLs with target branch anchors, acting as an interactive bridge back to Git pipelines. |
 
 ---
 
@@ -121,15 +119,4 @@ Perfect for direct deployment to **Streamlit Cloud** (which runs on serverless C
    ```
 
 ---
-
-## 🌟 Security, Privacy & Heuristics
-
-Traditional LLM implementations fail in clinical settings because sending medical texts or organizational practices to central APIs poses massive data leakage hazards. 
-
-The **Praxis-IT Agent Studio** mitigates this by relying exclusively on the **Local Resilient Offline-Engine**:
-- **100% Client-Safe:** No network requests are dispatched to external AI systems.
-- **Zero Token Cost:** No model API subscriptions, keys, or rate limits.
-- **Deterministic Formatting:** Outputs pristine, standard Markdown every time without hallucinating or corrupting critical guidelines.
-
----
-*This repository serves as a fully functional submission prototype for the Kaggle 5-Day AI Agents Intensive Course Capstone.*
+*This repository serves as a prototype for the Kaggle 5-Day AI Agents Intensive Course Capstone.*
