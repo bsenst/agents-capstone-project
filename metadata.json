@@ -1,0 +1,8 @@
+{
+  "name": "Streamlit Praxis-IT Agent Studio",
+  "description": "An interactive Streamlit-style Multi-Agent interface to check, analyze, and summarize articles against the bsenst/praxis-it GitHub repository using Hugging Face and Gemini models.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
